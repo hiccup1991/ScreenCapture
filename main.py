@@ -8,11 +8,17 @@
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 
-options = webdriver.ChromeOptions()
-options.add_argument("headless")
-
-# set the window size
-options.add_argument('window-size=1200x800')
+# selenium
+prefs = {'profile.managed_default_content_settings.images': 2,
+         'disk-cache-size': 4096}
+options = Options()
+options.add_experimental_option("prefs", prefs)
+options.add_argument("--headless")
+options.add_argument("--disable-gpu")
+options.add_argument("--log-level=3")
+options.add_argument('--disable-infobars')
+options.add_argument('--disable-extensions')
+options.add_argument('--window-size=1920x1080')
 
 # initialize the driver
 driver = webdriver.Chrome(
@@ -38,11 +44,45 @@ import threading
 from threading import Timer
 import time
 
-import util
-import math
 import os
-import tempfile
-from PIL import Image
+from datetime import datetime
+directory = 'screenshots'
+
+
+def website_cleaner(web_url):
+    web_url = "{}".format(web_url.replace("http://", ""))
+    web_url = "{}".format(web_url.replace("https://", ""))
+    web_url = "{}".format(web_url.replace("www.", ""))
+    # web_url = "{}".format(web_url.replace("web.archive.org/web/", "")) # cleaner for the wayback machine
+    cleaned_web_url = "{}".format(web_url.replace("/", "-"))
+    return cleaned_web_url
+
+
+def create_project_dir(directory):
+    if not os.path.exists(directory):
+        print('Creating directory ' + directory)
+        os.makedirs(directory)
+
+
+def execute_screenshot(driver, url, directory):
+    create_project_dir(directory)
+    filename = ("{}-{}".format(website_cleaner(url),
+                               datetime.now().strftime('%Y-%m-%d-%H-%M-%S'))).replace("--", "-")
+    print("capturing screen: {}".format(filename))
+    viewport = set_window_size()  # captures the height
+    # resets the window size to viewport dimensions
+    driver.set_window_size(1920, viewport)
+    set_window_size()  # sets the page to full view
+    driver.get_screenshot_as_file('./{}/{}.png'.format(directory, filename))
+    driver.set_window_size(1920, 1080)  # resets the window size to default
+
+
+def set_window_size():
+    total_height = driver.execute_script(
+        "return document.body.parentNode.scrollHeight")
+    viewport_height = driver.execute_script("return window.innerHeight")
+    driver.set_window_size(1920, total_height)
+    return viewport_height
 
 
 def save_fullpage_screenshot(driver, output_path, tmp_prefix='', tmp_suffix='.png'):
@@ -152,18 +192,13 @@ def destroy_New_Toplevel():
     w = None
 
 
-def capture_time(interval):
+def capture_time(interval, url):
 
     global threadFlag, driver
     threadFlag = True
     interval = float(interval)
     while threadFlag:
-        now = time.strftime("%c")
-        now = now.replace(":", " ")
-        print(now)
-        # util.fullpage_screenshot(driver, now + ".png")
-        # driver.save_screenshot(now + ".png")
-        save_fullpage_screenshot(driver, now + ".png")
+        execute_screenshot(driver, url, directory)
         time.sleep(interval)
 
 
@@ -240,7 +275,7 @@ class New_Toplevel:
 
             self.Button1.configure(text="Stop")
             threading.Thread(target=capture_time, args=(
-                self.Entry2.get())).start()
+                self.Entry2.get(), self.Entry1.get())).start()
 
         else:
             self.Button1.configure(text="Start")
